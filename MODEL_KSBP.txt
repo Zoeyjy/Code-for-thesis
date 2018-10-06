@@ -1,0 +1,120 @@
+model {
+
+for(t in 1:T) {
+for(s in 1:nS){
+# measurement error model
+species[t,s] ~ dnorm(mu.Sp[t,s], Taue[s]) 
+
+mu.Sp[t, s] <- int+theta[z[t],s]
+}
+
+#Allocation variable (standatd situation z[t]=j )
+z[t] ~ dcat(p[t,]) 
+}
+
+for(j in 1:m){
+theta[j,1:nS] ~ dmnorm(mu.theta[j,1:nS], Tau.theta[j, 1:nS, 1:nS])
+}
+
+for (s in 1:nS){
+Taue[s] ~ dgamma(1, 1)
+}
+#ndf=nS+1
+
+int ~ dnorm(0, 1)
+#for (s in 1:nS){
+#int[s] ~ dnorm(0, 0.1) 
+#}
+############################################
+# prior for component center and precision #
+############################################
+#for (j in 1:m){
+#mu.theta[j, 1:nS] ~ dmnorm(S.mu[j, 1:nS, S.Tau[1:nS, 1:nS]])
+#}
+
+for (j in 1:m){
+for(s in 1:nS){
+mu.theta[j,s]~dnorm(0, 1)
+}
+}
+		
+for (j in 1:m){
+Tau.theta[j, 1:nS, 1:nS] ~ dwish(R0[1:nS, 1:nS], ndf)
+}
+
+
+#for (j in 1:m){
+#for(s in 1:nS){
+#S.mu.theta[j,s] <- S.start[s]+(j-1)*S.range[s]/(nS-1)
+#}
+#}
+
+
+#for(s in 1:nS){
+#tilt[s] <- (sgncorr[s]+1)/2
+#S.range[s] <- sgncorr[s]*(S.max[s]-S.min[s])
+#S.start[s] <- tilt[s]*S.min[s]+(1-tilt[s])*S.max[s]
+#}
+
+
+###############################
+# Kernel Stick-breaking prior #
+###############################
+for(t in 1:T){
+p[t,1] <- uin[t,1]
+
+for (j in 2:m) {
+  p[t,j] <- uin[t,j]*prod(uout[t,1:(j-1)])
+  }
+  }
+
+for(j in 1:(m-1)){
+v[j] ~ dbeta(1,b)
+knot1[j] ~ dunif(min1,max1)
+knot2[j] ~ dunif(min2, max2)
+invbw[j] ~ dgamma(1,lambda)
+
+# invbw is the inv bandwidth 
+for (t in 1:T){
+uin[t,j] <- exp(-0.5*invbw[j]*(pow(knot1[j]-wu[t],2)+pow(knot2[j]-wv[t],2)))*v[j]
+uout[t,j]<-1-uin[t,j]
+}
+}
+
+# Apply SBP truncation to m classes
+for (t in 1:T){
+  uin[t,m]<-1
+}
+
+lambda ~ dunif(0, lmax) # 
+
+# Precision parameter 
+b <- 0.5
+#b ~ dgamma(a1,b1)
+#a1<-2
+#b1<-4
+#a1 ~ dunif(amin, amax) 
+#b1 ~ dunif(bmin, bmax)
+#alpha ~ dunif(0.3,10) (example galaxy data and Molitor)
+#Gamma a=2 and b=1 (Premium) # crash
+#Gamma a=2 and b=4 (example galaxy data) # crash
+#Gamma a=0.1 and b=0.1 (example from book, but I got error as parameter too small to be sampled) # crash
+# Gamma a=1 and b=1 # crash
+##################################################
+# Programming for calculating summary statistics #
+##################################################
+for (t in 1:T){
+for (j in 1:m) {
+SC[t, j] <- equals(j, z[t])
+}
+}
+
+# total clusters			
+for (j in 1:m) {
+sumSC[j] <- sum(SC[,j])
+cl[j] <- step(sumSC[j]-1)
+}
+K <- sum(cl[])
+# see: https://fisher.osu.edu/~schroeder.9/AMIS900/Ohlssen2006.pdf
+
+}
